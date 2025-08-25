@@ -13,11 +13,18 @@ interface Advocate {
   phoneNumber: number;
 }
 
+type SortField = 'firstName' | 'lastName' | 'city' | 'degree' | 'yearsOfExperience';
+type SortDirection = 'asc' | 'desc';
+
 export default function Home() {
   const [advocates, setAdvocates] = useState([]);
   const [filteredAdvocates, setFilteredAdvocates] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [sortField, setSortField] = useState<SortField>('firstName');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   useEffect(() => {
     console.log("fetching advocates...");
@@ -34,6 +41,7 @@ export default function Home() {
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const searchTerm = e.target.value;
     setSearchTerm(searchTerm);
+    setCurrentPage(1);
 
     console.log("filtering advocates...");
     const filteredAdvocates = advocates?.filter((advocate: Advocate) => {
@@ -56,6 +64,54 @@ export default function Home() {
     console.log(advocates);
     setSearchTerm("");
     setFilteredAdvocates(advocates);
+    setCurrentPage(1);
+  };
+
+  const handleSort = (field: SortField) => {
+    const newDirection = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc';
+    setSortField(field);
+    setSortDirection(newDirection);
+    setCurrentPage(1);
+  };
+
+  const sortedAdvocates = [...filteredAdvocates].sort((a: Advocate, b: Advocate) => {
+    let aValue = a[sortField];
+    let bValue = b[sortField];
+
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      aValue = aValue.toLowerCase();
+      bValue = bValue.toLowerCase();
+    }
+
+    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const totalPages = Math.ceil(sortedAdvocates.length / itemsPerPage);
+  const paginatedAdvocates = sortedAdvocates.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return (
+        <svg className="w-4 h-4 ml-1 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M5 12a1 1 0 102 0V6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L5 6.414V12zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z" />
+        </svg>
+      );
+    }
+    
+    return sortDirection === 'asc' ? (
+      <svg className="w-4 h-4 ml-1 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+      </svg>
+    ) : (
+      <svg className="w-4 h-4 ml-1 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+      </svg>
+    );
   };
 
   const formatPhoneNumber = (phone: number) => {
@@ -113,7 +169,7 @@ export default function Home() {
             </div>
             {searchTerm && (
               <p id="search-results-count" className="mt-2 text-sm text-gray-600">
-                {filteredAdvocates.length} advocate{filteredAdvocates.length !== 1 ? 's' : ''} found for &ldquo;{searchTerm}&rdquo;
+                {sortedAdvocates.length} advocate{sortedAdvocates.length !== 1 ? 's' : ''} found for &ldquo;{searchTerm}&rdquo;
               </p>
             )}
           </div>
@@ -131,25 +187,96 @@ export default function Home() {
         {!isLoading && (
           <section aria-label="Advocates directory">
             <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+              {/* Top Pagination */}
+              {totalPages > 1 && (
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-700">
+                      Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, sortedAdvocates.length)} of {sortedAdvocates.length} advocates
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Previous
+                      </button>
+                      
+                      <div className="flex space-x-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                              currentPage === page
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                      </div>
+                      
+                      <button
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Desktop Table View */}
               <div className="hidden lg:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Name
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort('firstName')}
+                      >
+                        <div className="flex items-center">
+                          Name
+                          <SortIcon field="firstName" />
+                        </div>
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Location
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort('city')}
+                      >
+                        <div className="flex items-center">
+                          Location
+                          <SortIcon field="city" />
+                        </div>
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Credentials
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort('degree')}
+                      >
+                        <div className="flex items-center">
+                          Credentials
+                          <SortIcon field="degree" />
+                        </div>
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Specialties
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Experience
+                      <th 
+                        scope="col" 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort('yearsOfExperience')}
+                      >
+                        <div className="flex items-center">
+                          Experience
+                          <SortIcon field="yearsOfExperience" />
+                        </div>
                       </th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Contact
@@ -157,14 +284,14 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredAdvocates.length === 0 ? (
+                    {sortedAdvocates.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                           {searchTerm ? 'No advocates found matching your search.' : 'No advocates available.'}
                         </td>
                       </tr>
                     ) : (
-                      filteredAdvocates.map((advocate: Advocate) => (
+                      paginatedAdvocates.map((advocate: Advocate) => (
                         <tr key={advocate.id} className="hover:bg-gray-50 transition-colors duration-150">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
@@ -213,13 +340,13 @@ export default function Home() {
 
               {/* Mobile Card View */}
               <div className="lg:hidden">
-                {filteredAdvocates.length === 0 ? (
+                {sortedAdvocates.length === 0 ? (
                   <div className="px-6 py-12 text-center text-gray-500">
                     {searchTerm ? 'No advocates found matching your search.' : 'No advocates available.'}
                   </div>
                 ) : (
                   <div className="divide-y divide-gray-200">
-                    {filteredAdvocates.map((advocate: Advocate) => (
+                    {paginatedAdvocates.map((advocate: Advocate) => (
                       <article key={advocate.id} className="p-6 hover:bg-gray-50 transition-colors duration-150">
                         <div className="space-y-3">
                           <div className="flex items-start justify-between">
@@ -268,6 +395,50 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-700">
+                      Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, sortedAdvocates.length)} of {sortedAdvocates.length} advocates
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Previous
+                      </button>
+                      
+                      <div className="flex space-x-1">
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                              currentPage === page
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        ))}
+                      </div>
+                      
+                      <button
+                        onClick={() => setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
         )}
